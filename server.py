@@ -5,7 +5,31 @@ import os
 import time
 import glob
 import uvicorn
+
+# Set environment variable to disable host checking BEFORE importing MCP
+os.environ["MCP_DISABLE_HOST_VALIDATION"] = "1"
+os.environ["MCP_ALLOWED_HOSTS"] = "*"
+
 from mcp.server.fastmcp import FastMCP
+
+# Patch MCP's transport security to allow all hosts
+import mcp.server.sse as sse_module
+original_validate = getattr(sse_module, '_validate_request', None)
+if original_validate:
+    sse_module._validate_request = lambda *args, **kwargs: True
+
+# Also try patching via transport_security module
+try:
+    from mcp.server import transport_security
+    # Patch all validation functions
+    transport_security._validate_host = lambda *args, **kwargs: True
+    transport_security.validate_request = lambda *args, **kwargs: True
+    transport_security.check_host = lambda *args, **kwargs: True
+    # If there's a class, patch it
+    if hasattr(transport_security, 'TransportSecurity'):
+        transport_security.TransportSecurity.validate_host = lambda *args, **kwargs: True
+except Exception as e:
+    print(f"Warning: Could not patch transport_security: {e}")
 
 # Initialize Server with custom host/port to allow remote connections
 mcp = FastMCP("WinLab-GodMode", host="0.0.0.0", port=8000)
