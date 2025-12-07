@@ -7,12 +7,12 @@ Designed for offensive security labs and red team workflows, this tool provides 
 ## Architecture
 
 * **Server (Windows):** Runs a persistent PowerShell session and listens on Port 8000 (SSE).
-* **Bridge (Mac):** Acts as a local MCP proxy. It receives commands from Claude Code via stdio, forwards them over HTTP to Windows, and returns the output.
+* **Bridge :** Acts as a local MCP proxy. It receives commands from Claude Code via stdio, forwards them over HTTP to Windows, and returns the output.
 
 ## Prerequisites
 
 * **Windows Machine:** Python 3.10+, PowerShell 5.1+
-* **Mac Machine:** Python 3.10+, Claude Code CLI
+* **Bridge Machine:** Python 3.10+, Claude Code CLI
 * **Network:** Both machines must be on the same LAN/VPN. Port 8000 must be open on Windows.
 
 ---
@@ -35,7 +35,7 @@ Designed for offensive security labs and red team workflows, this tool provides 
     python server.py
     ```
 
-### 2. Mac Side (The Bridge)
+### 2.The Bridge
 
 1.  Install Python dependencies:
     ```bash
