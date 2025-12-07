@@ -7,8 +7,8 @@ import glob
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 
-# Initialize Server
-mcp = FastMCP("WinLab-GodMode")
+# Initialize Server with custom host/port to allow remote connections
+mcp = FastMCP("WinLab-GodMode", host="0.0.0.0", port=8000)
 
 class PersistentShell:
     def __init__(self):
@@ -118,9 +118,5 @@ def bulk_read(directory: str, pattern: str = "*") -> dict:
 if __name__ == "__main__":
     print("📢 WinLab God-Mode Listening on 0.0.0.0:8000")
 
-    # CRITICAL FIX: We call the sse_app method to get the ASGI application object
-    app = mcp.sse_app()
-
-    # We pass the application object to uvicorn, which will run the server
-    # Added forwarded_allow_ips and proxy_headers to fix "Invalid Host header" error
-    uvicorn.run(app, host="0.0.0.0", port=8000, forwarded_allow_ips="*", proxy_headers=True)
+    # Use mcp.run() with sse transport - this properly configures host binding
+    mcp.run(transport="sse")
