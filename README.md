@@ -1,102 +1,176 @@
 # Windows God Mode MCP
 
-A high-performance, persistent Model Context Protocol (MCP) server that bridges **Claude Code (CLI)** to a **Windows Lab Machine**.
+A simple MCP bridge that connects Claude Code to a remote Windows machine over HTTP.
 
-Designed for offensive security labs and red team workflows, this tool provides **raw, unrestricted shell access** with state persistence (variables are saved between commands) and a 20-minute timeout for long-running tools (Nmap, BloodHound, etc.).
+Designed for security labs and red team workflows, this tool provides shell access to Windows from Claude Code with support for long-running commands (5 minute default timeout).
 
 ## Architecture
 
-* **Server (Windows):** Runs a persistent PowerShell session and listens on Port 8000 (SSE).
-* **Bridge :** Acts as a local MCP proxy. It receives commands from Claude Code via stdio, forwards them over HTTP to Windows, and returns the output.
+```
+Claude Code (Mac/Linux)  <--stdio-->  bridge.py  <--HTTP-->  server.py (Windows)
+```
+
+- **server.py (Windows):** Simple HTTP server that executes commands and file operations.
+- **bridge.py (Mac/Linux):** Stdio MCP client that forwards tool calls to the Windows server.
 
 ## Prerequisites
 
-* **Windows Machine:** Python 3.10+, PowerShell 5.1+
-* **Bridge Machine:** Python 3.10+, Claude Code CLI
-* **Network:** Both machines must be on the same LAN/VPN. Port 8000 must be open on Windows.
-
----
+- **Windows Machine:** Python 3.8+
+- **Mac/Linux Machine:** Python 3.8+, Claude Code CLI
+- **Network:** Both machines on the same LAN. Port 8000 open on Windows.
 
 ## Installation
 
-### 1. Windows Side (The Server)
+### 1. Windows Side
 
-1.  Install Python dependencies:
-    ```powershell
-    pip install "mcp[cli]" psutil uvicorn
-    ```
-2.  Save `server.py` to `C:\MCP\WinLab\server.py`.
-3.  Allow Port 8000 in Firewall:
-    ```powershell
-    New-NetFirewallRule -DisplayName "MCP-Server" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow
-    ```
-4.  Run the server:
-    ```powershell
-    python server.py
-    ```
+1. Copy `server.py` to the Windows machine.
 
-### 2.The Bridge
+2. Allow Port 8000 in Windows Firewall:
+   ```powershell
+   New-NetFirewallRule -DisplayName "MCP-Server" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow
+   ```
 
-1.  Install Python dependencies:
-    ```bash
-    pip install "mcp[cli]" httpx
-    ```
-2.  Create the directory:
-    ```bash
-    mkdir -p ~/mcp/win-bridge
-    ```
-3.  Save `bridge.py` to `~/mcp/win-bridge/bridge.py`.
-4.  **Edit `bridge.py`** and update the `WINDOWS_IP` variable to your Windows LAN IP.
+3. Run the server:
+   ```powershell
+   python server.py
+   ```
 
-### 3. Connect Claude Code (Mac)
+   You should see:
+   ```
+   ============================================================
+     Windows God-Mode MCP Server
+     Listening on 0.0.0.0:8000
+   ============================================================
+   ```
 
-1.  Locate your MCP configuration file.
-    * Standard path: `~/Library/Application Support/Claude/claude_desktop_config.json`
-    * *Note: Claude Code often shares this config file with the desktop app. If you use a custom config path flag, ensure this JSON is referenced.*
-2.  Add the bridge configuration:
-    ```json
-    {
-      "mcpServers": {
-        "win-god-mode": {
-          "command": "python",
-          "args": ["/Users/YOUR_USER/mcp/win-bridge/bridge.py"]
-        }
-      }
+### 2. Mac/Linux Side (Bridge)
+
+1. Edit `bridge.py` and set your Windows IP:
+   ```python
+   WINDOWS_IP = "192.168.x.x"  # Your Windows machine IP
+   WINDOWS_PORT = 8000
+   ```
+
+2. Test connectivity:
+   ```bash
+   curl http://192.168.x.x:8000/health
+   ```
+
+### 3. Configure Claude Code
+
+Add the bridge to your Claude Code MCP config (`~/.claude.json`):
+
+```json
+{
+  "mcpServers": {
+    "windows-dev": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["/path/to/bridge.py"]
     }
-    ```
+  }
+}
+```
 
----
+Or use the CLI:
+```bash
+claude mcp add windows-dev python3 /path/to/bridge.py
+```
 
-## Usage & Verification
+Restart Claude Code after adding the configuration.
 
-Since there is no GUI, follow this verification loop in your terminal.
+## Available Tools
 
-1.  **Start the Server:** Ensure `python server.py` is running on Windows.
-2.  **Start Claude Code:** Run `claude` in your Mac terminal.
-3.  **Verify Connection:**
-    Type the following prompt:
-    > "List your available tools. Do you see `win_exec` and `win_read`?"
+| Tool | Description |
+|------|-------------|
+| `win_exec` | Execute shell command (cmd.exe) |
+| `win_powershell` | Execute PowerShell command |
+| `win_read_file` | Read a text file |
+| `win_read_file_b64` | Read a file as base64 (for binaries) |
+| `win_write_file` | Write content to a file |
+| `win_list_directory` | List directory contents |
+| `win_download_file` | Download a file from URL |
+| `win_delete` | Delete a file or directory |
+| `win_copy` | Copy a file or directory |
+| `win_move` | Move a file or directory |
+| `win_exists` | Check if a path exists |
+| `win_shell_status` | Check server health |
+| `win_server_info` | Get system information |
 
-    * **Success:** Claude will list the tools.
-    * **Failure:** Claude will say it has no external tools. Check the bridge logs.
+## Usage
 
-### Example CLI Prompts
+Once configured, Claude Code can execute commands on Windows:
 
-**1. Reconnaissance**
-> "Use `win_exec` to get the current user and IP address."
+```
+You: Run ipconfig on the Windows machine
+Claude: [uses win_exec with command "ipconfig"]
+```
 
-**2. Persistence Test**
-> "Set a variable `$target = '192.168.1.5'`. Then, run `ping $target` to confirm it remembers the IP."
+### Verification
 
-**3. Bulk Reading**
-> "Read all `.xml` files in `C:\ProgramData\App\Config` using `win_read`."
+1. Start the server on Windows: `python server.py`
+2. Start Claude Code on Mac: `claude`
+3. Ask Claude: "Check the Windows server status"
 
-### Important Notes
+If working, Claude will return the hostname and user from the Windows machine.
 
-* **Interactive Tools:** Do **not** run commands that require user input (e.g., `runas`, `copy` without `/Y`). The shell will hang waiting for a keypress. Always use force flags (e.g., `rm -Force`).
-* **Security:** This tool exposes a raw shell over HTTP (Port 8000) **without encryption**. Only run this on a trusted, private lab network.
+### Example Prompts
 
----
+- "Run `whoami` on the Windows machine"
+- "List the contents of C:\Users"
+- "Read the file C:\Windows\System32\drivers\etc\hosts"
+- "Download a file from URL to C:\Temp\file.exe"
+
+## HTTP Endpoints (server.py)
+
+For debugging, you can call the server directly:
+
+```bash
+# Health check
+curl http://192.168.x.x:8000/health
+
+# System info
+curl http://192.168.x.x:8000/info
+
+# Execute command
+curl -X POST http://192.168.x.x:8000/exec \
+  -H "Content-Type: application/json" \
+  -d '{"cmd": "whoami"}'
+
+# Execute PowerShell
+curl -X POST http://192.168.x.x:8000/powershell \
+  -H "Content-Type: application/json" \
+  -d '{"cmd": "Get-Process | Select-Object -First 5"}'
+
+# List directory
+curl -X POST http://192.168.x.x:8000/ls \
+  -H "Content-Type: application/json" \
+  -d '{"path": "C:\\Users"}'
+```
+
+## Security Notes
+
+- This tool exposes a shell over HTTP without authentication or encryption.
+- Only run on trusted, private lab networks.
+- Do not expose port 8000 to the internet.
+- Avoid running interactive commands that require user input.
+
+## Troubleshooting
+
+**Claude Code says no tools available:**
+- Restart Claude Code after adding MCP config
+- Check that `bridge.py` path is correct in config
+- Verify Python 3 is available as `python3`
+
+**Connection refused:**
+- Verify Windows server is running
+- Check Windows firewall allows port 8000
+- Confirm IP address is correct in `bridge.py`
+
+**Commands timeout:**
+- Default timeout is 300 seconds (5 minutes)
+- Increase `TIMEOUT` in `bridge.py` for longer operations
 
 ## License
+
 MIT
