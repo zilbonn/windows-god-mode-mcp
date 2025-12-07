@@ -4,7 +4,7 @@ import queue
 import os
 import time
 import glob
-import uvicorn # CRITICAL FIX: We need this for the web server
+import uvicorn
 from mcp.server.fastmcp import FastMCP
 
 # Initialize Server
@@ -118,6 +118,8 @@ def bulk_read(directory: str, pattern: str = "*") -> dict:
 if __name__ == "__main__":
     print("📢 WinLab God-Mode Listening on 0.0.0.0:8000")
     
-    # CRITICAL FIX: We use uvicorn explicitly instead of mcp.run()
-    # This bypasses the argument error you were seeing.
-    uvicorn.run(mcp.sse_app, host="0.0.0.0", port=8000)
+    # CRITICAL FIX: We call the sse_app method to get the ASGI application object
+    app = mcp.sse_app()
+    
+    # We pass the application object to uvicorn, which will run the server
+    uvicorn.run(app, host="0.0.0.0", port=8000)
