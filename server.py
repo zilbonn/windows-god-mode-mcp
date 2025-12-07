@@ -4,6 +4,7 @@ import queue
 import os
 import time
 import glob
+import uvicorn # CRITICAL FIX: We need this for the web server
 from mcp.server.fastmcp import FastMCP
 
 # Initialize Server
@@ -16,6 +17,7 @@ class PersistentShell:
         
         # Start PowerShell in the background. 
         # -NoExit keeps variables alive ($x=1 persists).
+        # bufsize=0 ensures we get output instantly.
         self.process = subprocess.Popen(
             ["powershell", "-NoExit", "-Command", "-"],
             stdin=subprocess.PIPE,
@@ -102,7 +104,7 @@ def bulk_read(directory: str, pattern: str = "*") -> dict:
     files = glob.glob(search_path)
     
     results = {}
-    # Limit to 20 files to prevent crashing Claude
+    # Limit to 20 files to prevent crashing Claude with too much text
     for fpath in files[:20]: 
         if os.path.isfile(fpath):
             try:
@@ -115,5 +117,7 @@ def bulk_read(directory: str, pattern: str = "*") -> dict:
 
 if __name__ == "__main__":
     print("📢 WinLab God-Mode Listening on 0.0.0.0:8000")
-    # Listen on all interfaces so Mac can connect
-    mcp.run(transport="sse", host="0.0.0.0", port=8000)
+    
+    # CRITICAL FIX: We use uvicorn explicitly instead of mcp.run()
+    # This bypasses the argument error you were seeing.
+    uvicorn.run(mcp.sse_app, host="0.0.0.0", port=8000)
