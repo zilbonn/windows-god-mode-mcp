@@ -117,9 +117,10 @@ def bulk_read(directory: str, pattern: str = "*") -> dict:
 
 if __name__ == "__main__":
     print("📢 WinLab God-Mode Listening on 0.0.0.0:8000")
-    
+
     # CRITICAL FIX: We call the sse_app method to get the ASGI application object
     app = mcp.sse_app()
-    
+
     # We pass the application object to uvicorn, which will run the server
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Added forwarded_allow_ips and proxy_headers to fix "Invalid Host header" error
+    uvicorn.run(app, host="0.0.0.0", port=8000, forwarded_allow_ips="*", proxy_headers=True)
