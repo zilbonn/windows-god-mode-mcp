@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 from typing import Any, Dict
 from mcp.server.fastmcp import FastMCP
 from mcp.client.sse import sse_client
@@ -16,10 +17,10 @@ async def forward_request(tool_name: str, args: dict) -> Any:
     Forwards request to Windows with a 20-minute timeout.
     """
     url = f"http://{WINDOWS_IP}:{PORT}/sse"
-    
+
     # Set connect and read timeouts to 1200s (20 mins)
     async with sse_client(url, timeout=1200) as (read, write):
-        async with ClientSession(read, write, read_timeout=1200) as session:
+        async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=1200)) as session:
             await session.initialize()
             result = await session.call_tool(tool_name, arguments=args)
             return result.content[0].text
